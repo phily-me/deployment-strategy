@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hello-svc"
+version = "0.1.0"
+description = "Hello World service with deployment strategy"
+authors = [{name = "Deploy Example", email = "deploy@example.com"}]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "stamina",
+    "pytest",
+    "coverage",
+    "ruff",
+    "httpx"  # Required by TestClient
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "coverage",
+    "ruff"
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["hello_svc", "tests"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+omit = ["src/**/asgi.py"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "EM", "EXE", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "NPY", "RUF"]
+ignore = ["S101", "PLR2004", "PLR0913"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hello_svc"]
