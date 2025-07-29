@@ -1,219 +1,189 @@
-# Hello World Deployment Strategy
+# Python Development and Deployment Strategy
 
-A complete Python deployment strategy demonstrating FastAPI application deployment to on-premise Docker instances with nginx proxy manager integration.
+A complete development environment and deployment strategy template demonstrating:
+- **Nix/Docker hybrid development environments**
+- **Automated deployment to on-premise Docker instances**
+- **nginx proxy manager integration with SSL**
+- **Branch-based deployment workflows**
 
 ## Project Structure
 
 ```
-hello-svc/
-├── src/hello_svc/          # Application source code
-│   ├── __init__.py
-│   ├── asgi.py            # ASGI application instance
-│   └── views.py           # FastAPI routes
-├── tests/                 # Test suite
-│   ├── __init__.py
-│   └── test_views.py     # API tests
-├── scripts/              # Deployment scripts
-│   ├── deploy.sh         # Server deployment automation
-│   └── setup-npm.sh      # Nginx proxy manager API
-├── templates/            # Configuration templates
+project/
+├── src/                    # Application source code
+├── tests/                  # Test suite  
+├── scripts/                # Development and deployment automation
+│   ├── docker-setup.sh     # Docker dev environment setup
+│   ├── deploy.sh           # Server deployment automation
+│   └── setup-npm.sh        # nginx proxy manager integration
+├── templates/              # Configuration templates
 │   └── docker-compose.yml.template
-├── main.py              # Application entry point
-├── pyproject.toml       # Project configuration & dependencies
-├── justfile            # Build automation commands
-├── Dockerfile          # Container definition
-└── DEPLOYMENT.md       # Deployment documentation
+├── flake.nix              # Nix development environment
+├── .env                   # Configuration variables
+├── .envrc                 # direnv setup (Nix/Docker detection)
+├── Dockerfile             # Production container
+├── Dockerfile.dev         # Development container with Nix
+├── Justfile              # Build automation commands
+└── pyproject.toml        # Project configuration
 ```
 
-## Features
+## Development Environment
 
-### Application Features
-- **FastAPI** web framework with async support
-- **Health check endpoint** (`/health`) for monitoring
-- **Info endpoint** (`/info`) for service metadata
-- **Comprehensive tests** with pytest and TestClient
+### Tools Required
 
-### Deployment Features
-- **nginx proxy manager** integration via API
-- **Automatic SSL certificates** with Let's Encrypt
-- **Container IP detection** and proxy configuration
-- **Branch-based subdomains** (e.g., `project-branch.example.com`)
-- **Port auto-assignment** to avoid conflicts
-- **Health checks** built into Docker containers
+| Tool | Purpose |
+|------|---------|
+| **Nix** | Development environment (preferred) |
+| **Docker** | Development environment (fallback) |
+| **direnv** | Environment management |
 
-## Quick Start
+### Setup Options
 
-### 1. Development Setup
-
+#### Option 1: Nix (Recommended)
 ```bash
-# Install dependencies
-just install
-
-# Run tests
-just test
-
-# Start development server
-just dev
-
-# Start with auto-reload
-just dev-reload
-
-# Run all checks
-just check-all
+# Prerequisites: nix, direnv
+direnv allow
+# → Automatically sets up Nix development shell
+just install && just test && just dev
 ```
 
-### 2. Local Testing
-
+#### Option 2: Docker Fallback
 ```bash
-# Test the API endpoints
-curl http://localhost:8000/                # Hello World
-curl http://localhost:8000/health          # Health check  
-curl http://localhost:8000/info            # Service info
-
-# Or use the built-in request helper
-just req                    # GET /
-just req health            # GET /health
-just req info              # GET /info
+# Prerequisites: docker, direnv  
+direnv allow
+# → Shows Docker setup instructions
+./scripts/docker-setup.sh setup
+docker exec -it example-project-dev nix develop
+# → Full Nix environment inside container
+just install && just test && just dev
 ```
 
-### 3. Production Deployment
+### Key Features
 
-```bash
-# Set environment variables
-export PROJECT_NAME="hello-svc"
-export DOMAIN_SUFFIX="example.com"
-export NPM_API_URL="http://localhost:81/api"
-export NPM_EMAIL="admin@example.com"
-export NPM_PASSWORD="your-password"
-
-# Full deployment pipeline
-just deploy-full user@server.com
-```
-
-## API Endpoints
-
-| Endpoint | Method | Description | Response |
-|----------|--------|-------------|----------|
-| `/` | GET | Hello World message | `{"message": "Hello World"}` |
-| `/health` | GET | Health check for monitoring | `{"status": "healthy"}` |
-| `/info` | GET | Service information | Service metadata object |
+- **Transparent Tooling**: Same commands work in both Nix and Docker environments
+- **Port Conflict Resolution**: Automatically finds available ports (8000-8099)
+- **Git Worktree Support**: Handles git worktrees automatically in containers
+- **Configurable**: Central `.env` file for all settings
 
 ## Deployment Architecture
 
 ```
-[Developer] → [Build] → [Docker] → [Deploy] → [nginx PM] → [Internet]
-     ↓           ↓         ↓          ↓          ↓
-   justfile   Container  Artifacts  Server   Proxy Config
-                           ↓          ↓
-                     Auto-upload  IP Detection
-                                     ↓
-                              project-branch.example.com
+┌─────────────┐    ┌─────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ Developer   │    │ Build       │    │ Target Server   │    │ nginx Proxy     │
+│ Machine     │───▶│ Artifacts   │───▶│ Docker Engine   │───▶│ Manager         │
+└─────────────┘    └─────────────┘    └─────────────────┘    └─────────────────┘
+       │                   │                   │                       │
+   ┌───▼───┐          ┌────▼────┐         ┌────▼────┐             ┌────▼────┐
+   │ just  │          │ Docker  │         │ Deploy  │             │ Auto    │
+   │ build │          │ Image   │         │ Script  │             │ SSL     │
+   │       │          │ .tar.gz │         │ & Config│             │ & DNS   │
+   └───────┘          └─────────┘         └─────────┘             └─────────┘
+                                                │
+                            ┌──────────────────▼──────────────────┐
+                            │ project-branch.domain.com           │
+                            │ ↓                                   │
+                            │ Container IP:Port Detection         │
+                            │ ↓                                   │
+                            │ Automatic Proxy Configuration       │
+                            └─────────────────────────────────────┘
 ```
 
-## Environment Variables
+### Deployment Flow
 
-### Development
-```bash
-PROJECT_NAME="hello-svc"        # Project identifier
-DOMAIN_SUFFIX="example.com"     # Base domain
-```
+1. **Local Build**: `just build` creates Docker image and deployment artifacts
+2. **Artifact Transfer**: Image and config uploaded to target server via SCP
+3. **Container Deployment**: Remote script loads image and starts container
+4. **Service Discovery**: Auto-detects container IP and port
+5. **Proxy Setup**: Configures nginx proxy manager via API
+6. **SSL Provisioning**: Automatic Let's Encrypt certificates
+7. **DNS Routing**: Branch-based subdomains (e.g., `myapp-feature.domain.com`)
 
-### nginx Proxy Manager
+## Configuration
+
+### Environment Variables (.env)
 ```bash
-NPM_API_URL="http://localhost:81/api"    # API endpoint
-NPM_EMAIL="admin@example.com"            # Login email
-NPM_PASSWORD="secure-password"           # Login password
-SSL_CERT_ID="1"                         # Certificate ID (0=new)
+# Project Configuration
+PROJECT_NAME=myapp
+DOMAIN_SUFFIX=example.com
+
+# Development Environment  
+DEV_CONTAINER_NAME=myapp-dev
+DEV_IMAGE_NAME=myapp-nix
+DEV_PORT_START=8000
+DEV_PORT_END=8099
+
+# nginx Proxy Manager
+NPM_API_URL=http://localhost:81/api
+NPM_EMAIL=admin@example.com
+NPM_PASSWORD=secure-password
 ```
 
 ## Available Commands
 
-### Development Commands
-- `just install` - Install dependencies with uv
-- `just dev` - Start production-like server
-- `just dev-reload` - Start with auto-reload for development
-- `just test` - Run pytest test suite
-- `just lint` - Run ruff linting and formatting checks
-- `just format` - Auto-format code with ruff
-- `just cov` - Run tests with coverage reporting
-- `just check-all` - Run all quality checks
-
-### Deployment Commands
-- `just build` - Build Docker image
-- `just artifacts` - Generate deployment artifacts
-- `just deploy <server>` - Deploy to server
-- `just deploy-full <server>` - Complete deployment pipeline
-- `just setup-npm <ip> <port>` - Configure nginx proxy manager
-- `just clean` - Clean up build artifacts
-
-### Utility Commands
-- `just req [path]` - Make HTTP request to running server
-
-## Docker Container
-
-The application runs in a secure Docker container:
-
-- **Multi-stage build** for smaller production images
-- **Non-root user** for security
-- **Health checks** using the `/health` endpoint
-- **Port 8000** exposed for the application
-- **Python 3.11+** with uv package manager
-
-## nginx Proxy Manager Integration
-
-The deployment automatically configures nginx proxy manager:
-
-1. **Detects container IP** after deployment
-2. **Creates proxy host** via API
-3. **Configures SSL certificates** (Let's Encrypt)
-4. **Sets security headers** and WebSocket support
-5. **Enables health check** routing
-
-## Testing
-
-The project includes comprehensive tests:
-
+### Development
 ```bash
-# Run specific test file
-uv run pytest tests/test_views.py
-
-# Run with verbose output
-just test -v
-
-# Generate coverage report
-just cov
+just install        # Install dependencies
+just test           # Run tests
+just lint           # Code linting
+just dev            # Start development server
+just dev-reload     # Development with auto-reload
 ```
 
-## Contributing
+### Deployment
+```bash
+just build                    # Build Docker image
+just artifacts               # Generate deployment package
+just deploy user@server.com  # Deploy to server
+just deploy-full user@server  # Full pipeline (test+lint+deploy)
+```
 
-1. Make changes to the code
-2. Run quality checks: `just check-all`
-3. Ensure tests pass: `just test`
-4. Test deployment locally if possible
+### Environment Management
+```bash
+# Docker environment
+./scripts/docker-setup.sh setup    # Create development container
+./scripts/docker-setup.sh cleanup  # Remove container and cleanup
+
+# Testing
+./scripts/test-dev-env.sh all      # Test both Nix and Docker setups
+```
 
 ## Deployment Examples
 
-### Simple Deployment
+### Branch-Based Deployment
 ```bash
-# Deploy to staging
-just deploy-full staging.example.com
-# → Available at: https://hello-svc-main.example.com
-```
-
-### Feature Branch Deployment
-```bash
-# Switch to feature branch
+# Feature branch deployment
 git checkout feature/new-api
+just deploy-full server.example.com
+# → Available at: https://myapp-feature-new-api.example.com
 
-# Deploy feature branch
-just deploy-full staging.example.com  
-# → Available at: https://hello-svc-feature-new-api.example.com
+# Production deployment  
+git checkout main
+just deploy-full prod.example.com
+# → Available at: https://myapp-main.example.com
 ```
 
-### Manual nginx Proxy Manager Setup
+### Manual nginx Configuration
 ```bash
-# If you need to configure proxy manually
+# If automatic proxy setup fails
 just setup-npm 172.17.0.3 8080
 ```
 
-This deployment strategy provides a complete, production-ready solution for deploying Python FastAPI applications with automated reverse proxy configuration and SSL certificate management.
+## Template Usage
+
+This repository serves as a template for projects requiring:
+
+1. **Hybrid Development Environments** (Nix + Docker fallback)
+2. **Automated Deployment Pipelines** 
+3. **Branch-based Testing/Staging**
+4. **nginx Proxy Manager Integration**
+5. **SSL Certificate Automation**
+
+### Adapting for Your Project
+
+1. **Update `.env`**: Set `PROJECT_NAME`, `DOMAIN_SUFFIX`, etc.
+2. **Replace `src/`**: Add your application code
+3. **Update `Dockerfile`**: Modify for your runtime requirements  
+4. **Customize `Justfile`**: Add project-specific commands
+5. **Configure nginx**: Set `NPM_*` variables for your proxy manager
+
+The deployment strategy and development environment setup will work with any containerized application.
