@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock  # For Docker-in-Docker
+    working_dir: /workspace
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME}
+      - DOMAIN_SUFFIX=${DOMAIN_SUFFIX}
+    ports:
+      - "8000:8000"
+    tty: true
+    stdin_open: true
+    command: nix develop --command bash

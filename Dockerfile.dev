@@ -1,0 +1,20 @@
+# Dockerfile for development environment with Nix
+FROM nixos/nix:latest
+
+# Install essential utilities including Docker CLI
+RUN nix-env -iA nixpkgs.bash nixpkgs.git nixpkgs.docker nixpkgs.coreutils
+
+# Enable experimental features for flakes
+RUN echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy flake files to cache dependencies
+COPY flake.nix flake.lock* /workspace/
+
+# Pre-build the development shell to cache dependencies
+RUN nix develop --command echo "Development environment cached"
+
+# Keep container running for exec commands
+CMD ["sleep", "infinity"]
